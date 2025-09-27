@@ -15,8 +15,13 @@ farm_ng_add_library(sophus_interp_spline
 )
 target_link_libraries(sophus_interp_spline INTERFACE sophus_lie)
 
+add_subdirectory(tests)
 
-farm_ng_add_test(spline
-                      PARENT_LIBRARY sophus_interp_spline
-                      LINK_LIBRARIES sophus_interp_spline
-                      LABELS small)
+# farm_ng_add_test(spline
+#                       PARENT_LIBRARY sophus_interp_spline
+#                       LINK_LIBRARIES sophus_interp_spline
+#                       LABELS small)
+# farm_ng_add_test(spline_error
+#                       PARENT_LIBRARY sophus_interp_spline
+#                       LINK_LIBRARIES sophus_interp_spline
+#                       LABELS small)

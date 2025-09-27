@@ -18,9 +18,20 @@
 
 namespace sophus {
 
+enum class SegmentCase { first, normal, last };
+
 struct SegmentCoordinate {
   int segment_idx;
   double fraction;
+};
+
+struct KnotsAndU {
+  SegmentCase segment_case;
+  int idx_prev;
+  int idx_0;
+  int idx_1;
+  int idx_2;
+  double u;
 };
 
 }  // namespace sophus

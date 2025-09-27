@@ -153,6 +153,22 @@ class CubicLieGroupBSplineImpl {
         parent_from_control_point_transforms_.size());
   }
 
+  KnotsAndU knotsAndU(int i, double u) const {
+      KnotsAndU ku;
+      ku.u = u;
+      ku.segment_case =
+          i == 0 ? SegmentCase::first
+          : (i == this->getNumSegments() - 1 ? SegmentCase::last
+                  : SegmentCase::normal);
+
+      ku.idx_prev = std::max(0, i - 1);
+      ku.idx_0 = i;
+      ku.idx_1 = std::min(i + 1, int(this->parent_from_control_point_transforms_.size()) - 1);
+      ku.idx_2 = std::min(i + 2, int(this->parent_from_control_point_transforms_.size()) - 1);
+      return ku;
+  }
+
+
   [[nodiscard]] LieGroup parentFromSpline(int i, double u) const {
     SOPHUS_ASSERT(i >= 0, "i = {}", i);
     SOPHUS_ASSERT(
@@ -163,24 +179,14 @@ class CubicLieGroupBSplineImpl {
         this->getNumSegments(),
         parent_from_control_point_transforms_.size());
 
-    details::SegmentCase segment_case =
-        i == 0
-            ? details::SegmentCase::first
-            : (i == this->getNumSegments() - 1 ? details::SegmentCase::last
-                                               : details::SegmentCase::normal);
-
-    int idx_prev = std::max(0, i - 1);
-    int idx_0 = i;
-    int idx_1 = i + 1;
-    int idx_2 = std::min(
-        i + 2, int(this->parent_from_control_point_transforms_.size()) - 1);
+    KnotsAndU ku = knotsAndU(i,u);
 
     return details::CubicLieGroupBSplineSegment<LieGroup>(
-               segment_case,
-               parent_from_control_point_transforms_[idx_prev].params(),
-               parent_from_control_point_transforms_[idx_0].params(),
-               parent_from_control_point_transforms_[idx_1].params(),
-               parent_from_control_point_transforms_[idx_2].params())
+               ku.segment_case,
+               parent_from_control_point_transforms_[ku.idx_prev].params(),
+               parent_from_control_point_transforms_[ku.idx_0].params(),
+               parent_from_control_point_transforms_[ku.idx_1].params(),
+               parent_from_control_point_transforms_[ku.idx_2].params())
         .parentFromSpline(u);
   }
 
@@ -194,24 +200,14 @@ class CubicLieGroupBSplineImpl {
         this->getNumSegments(),
         parent_from_control_point_transforms_.size());
 
-    details::SegmentCase segment_case =
-        i == 0
-            ? details::SegmentCase::first
-            : (i == this->getNumSegments() - 1 ? details::SegmentCase::last
-                                               : details::SegmentCase::normal);
-
-    int idx_prev = std::max(0, i - 1);
-    int idx_0 = i;
-    int idx_1 = i + 1;
-    int idx_2 = std::min(
-        i + 2, int(this->parent_from_control_point_transforms_.size()) - 1);
+    KnotsAndU ku = knotsAndU(i,u);
 
     return details::CubicLieGroupBSplineSegment<LieGroup>(
-               segment_case,
-               parent_from_control_point_transforms_[idx_prev].params(),
-               parent_from_control_point_transforms_[idx_0].params(),
-               parent_from_control_point_transforms_[idx_1].params(),
-               parent_from_control_point_transforms_[idx_2].params())
+               ku.segment_case,
+               parent_from_control_point_transforms_[ku.idx_prev].params(),
+               parent_from_control_point_transforms_[ku.idx_0].params(),
+               parent_from_control_point_transforms_[ku.idx_1].params(),
+               parent_from_control_point_transforms_[ku.idx_2].params())
         .dtParentFromSpline(u, delta_transform_);
   }
 
@@ -225,25 +221,19 @@ class CubicLieGroupBSplineImpl {
         this->getNumSegments(),
         parent_from_control_point_transforms_.size());
 
-    details::SegmentCase segment_case =
-        i == 0
-            ? details::SegmentCase::first
-            : (i == this->getNumSegments() - 1 ? details::SegmentCase::last
-                                               : details::SegmentCase::normal);
-
-    int idx_prev = std::max(0, i - 1);
-    int idx_0 = i;
-    int idx_1 = i + 1;
-    int idx_2 = std::min(
-        i + 2, int(this->parent_from_control_point_transforms_.size()) - 1);
+    KnotsAndU ku = knotsAndU(i,u);
 
     return details::CubicLieGroupBSplineSegment<LieGroup>(
-               segment_case,
-               parent_from_control_point_transforms_[idx_prev].params(),
-               parent_from_control_point_transforms_[idx_0].params(),
-               parent_from_control_point_transforms_[idx_1].params(),
-               parent_from_control_point_transforms_[idx_2].params())
+               ku.segment_case,
+               parent_from_control_point_transforms_[ku.idx_prev].params(),
+               parent_from_control_point_transforms_[ku.idx_0].params(),
+               parent_from_control_point_transforms_[ku.idx_1].params(),
+               parent_from_control_point_transforms_[ku.idx_2].params())
         .dt2ParentFromSpline(u, delta_transform_);
+  }
+
+  Scalar * unsafeMutControlPointPtr(size_t i) {
+      return parent_from_control_point_transforms_[i].unsafeMutPtr();
   }
 
   [[nodiscard]] std::vector<LieGroup> const& parentFromsControlPoint() const {
@@ -303,6 +293,10 @@ class CubicLieGroupBSpline {
     return t0_ + impl_.deltaT() * getNumSegments();
   }
 
+  Scalar * unsafeMutControlPointPtr(size_t i) {
+      return impl_.unsafeMutControlPointPtr(i);
+  }
+
   [[nodiscard]] std::vector<LieGroup> const& parentFromsControlPoint() const {
     return impl_.parentFromsControlPoint();
   }
@@ -341,6 +335,12 @@ class CubicLieGroupBSpline {
     --index_and_u.segment_idx;
 
     return index_and_u;
+  }
+  
+  KnotsAndU knotsAndU(double t) const {
+      SegmentCoordinate iu = indexAndU(t);
+      KnotsAndU ku = impl_.knotsAndU(iu.segment_idx,iu.fraction);
+      return ku;
   }
 
  private:

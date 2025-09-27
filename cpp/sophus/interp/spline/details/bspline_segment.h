@@ -24,7 +24,7 @@ class CubicBSplineFn {
       Vector const& control_point,
       std::array<Vector, 3> const& control_vectors,
       double u) {
-    Eigen::Vector3<TScalar> b = CubicBSplineBasis<TScalar>::b(u);
+    Eigen::Vector3<TScalar> b = CubicBSplineBasis<TScalar>::b(TScalar(u));
     return control_point + b[0] * control_vectors[0] +
            b[1] * control_vectors[1] + b[2] * control_vectors[2];
   }
@@ -34,7 +34,7 @@ class CubicBSplineFn {
     if (quadruple_idx == 0) {
       return Eigen::Matrix<Scalar, kDim, kDim>::Identity();
     }
-    Eigen::Vector3<TScalar> b = CubicBSplineBasis<Scalar>::b(u);
+    Eigen::Vector3<TScalar> b = CubicBSplineBasis<Scalar>::b(TScalar(u));
 
     return b[quadruple_idx - 1] * Eigen::Matrix<Scalar, kDim, kDim>::Identity();
   }

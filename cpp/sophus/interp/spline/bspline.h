@@ -24,27 +24,33 @@ class CubicBSplineImpl {
         control_points.size() >= 2u, ", but {}", control_points.size());
   }
 
+  KnotsAndU knotsAndU(int i, double u) const {
+      KnotsAndU ku;
+      ku.u = u;
+      ku.segment_case =
+          i == 0 ? SegmentCase::first
+          : (i == this->getNumSegments() - 1 ? SegmentCase::last
+                  : SegmentCase::normal);
+
+      ku.idx_prev = std::max(0, i - 1);
+      ku.idx_0 = i;
+      ku.idx_1 = std::min(i + 1, int(this->control_points_.size()) - 1);
+      ku.idx_2 = std::min(i + 2, int(this->control_points_.size()) - 1);
+      return ku;
+  }
+
   [[nodiscard]] Vector interpolate(int i, double u) const {
     SOPHUS_ASSERT_GE(i, 0);
     SOPHUS_ASSERT_LE(i, this->getNumSegments());
 
-    details::SegmentCase segment_case =
-        i == 0
-            ? details::SegmentCase::first
-            : (i == this->getNumSegments() - 1 ? details::SegmentCase::last
-                                               : details::SegmentCase::normal);
-
-    int idx_prev = std::max(0, i - 1);
-    int idx_0 = i;
-    int idx_1 = i + 1;
-    int idx_2 = std::min(i + 2, int(this->control_points_.size()) - 1);
+    KnotsAndU ku = knotsAndU(i,u);
 
     return details::CubicBSplineSegment<Scalar, kDim>(
-               segment_case,
-               control_points_[idx_prev],
-               control_points_[idx_0],
-               control_points_[idx_1],
-               control_points_[idx_2])
+               ku.segment_case,
+               control_points_[ku.idx_prev],
+               control_points_[ku.idx_0],
+               control_points_[ku.idx_1],
+               control_points_[ku.idx_2])
         .interpolate(u);
   }
 
@@ -53,40 +59,35 @@ class CubicBSplineImpl {
     SOPHUS_ASSERT_GE(i, 0);
     SOPHUS_ASSERT_LE(i, this->getNumSegments());
 
-    details::SegmentCase segment_case =
-        i == 0
-            ? details::SegmentCase::first
-            : (i == this->getNumSegments() - 1 ? details::SegmentCase::last
-                                               : details::SegmentCase::normal);
-
-    int idx_prev = std::max(0, i - 1);
-    int idx_0 = i;
-    int idx_1 = i + 1;
-    int idx_2 = std::min(i + 2, int(this->control_points_.size()) - 1);
+    KnotsAndU ku = knotsAndU(i,u);
 
     details::CubicBSplineSegment<Scalar, kDim> spline_segment(
-        segment_case,
-        control_points_[idx_prev],
-        control_points_[idx_0],
-        control_points_[idx_1],
-        control_points_[idx_2]);
+        ku.segment_case,
+        control_points_[ku.idx_prev],
+        control_points_[ku.idx_0],
+        control_points_[ku.idx_1],
+        control_points_[ku.idx_2]);
 
     Eigen::Matrix<Scalar, kDim, kDim> dxi;
     dxi.setZero();
 
-    if (idx_prev == control_point_idx) {
+    if (ku.idx_prev == control_point_idx) {
       dxi += spline_segment.dxiInterpolate(u, 0);
     }
-    if (idx_0 == control_point_idx) {
+    if (ku.idx_0 == control_point_idx) {
       dxi += spline_segment.dxiInterpolate(u, 1);
     }
-    if (idx_1 == control_point_idx) {
+    if (ku.idx_1 == control_point_idx) {
       dxi += spline_segment.dxiInterpolate(u, 2);
     }
-    if (idx_2 == control_point_idx) {
+    if (ku.idx_2 == control_point_idx) {
       dxi += spline_segment.dxiInterpolate(u, 3);
     }
     return dxi;
+  }
+
+  TScalar * unsafeMutControlPointPtr(size_t i) {
+      return control_points_[i].data();
   }
 
   [[nodiscard]] std::vector<Vector> const& controlPoints() const {
@@ -137,6 +138,10 @@ class CubicBSpline {
     return impl_.controlPoints();
   }
 
+  TScalar * unsafeMutControlPointPtr(size_t i) {
+      return impl_.unsafeMutControlPointPtr(i);
+  }
+
   std::vector<Vector>& controlPoints() { return impl_.controlPoints(); }
 
   [[nodiscard]] int getNumSegments() const { return impl_.getNumSegments(); }
@@ -144,6 +149,7 @@ class CubicBSpline {
   [[nodiscard]] double s(double t) const { return (t - t0_) / impl_.deltaT(); }
 
   [[nodiscard]] double deltaT() const { return impl_.deltaT(); }
+
 
   [[nodiscard]] SegmentCoordinate indexAndU(double t) const {
     SOPHUS_ASSERT_GE(t, t0_);
@@ -169,6 +175,12 @@ class CubicBSpline {
     --index_and_u.segment_idx;
 
     return index_and_u;
+  }
+
+  KnotsAndU knotsAndU(double t) const {
+      SegmentCoordinate iu = indexAndU(t);
+      KnotsAndU ku = impl_.knotsAndU(iu.segment_idx,iu.fraction);
+      return ku;
   }
 
  private:

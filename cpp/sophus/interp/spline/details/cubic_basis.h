@@ -59,7 +59,5 @@ class CubicBSplineBasis {
   }
 };
 
-enum class SegmentCase { first, normal, last };
-
 }  // namespace details
 }  // namespace sophus
