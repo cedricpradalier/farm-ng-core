@@ -23,7 +23,7 @@
 #include "sophus/sensor/camera_rig.h"
 
 #include <ceres/ceres.h>
-#include <farm_ng/core/pipeline/component.h>
+// #include <farm_ng/core/pipeline/component.h>
 #include <gtest/gtest.h>
 
 #include <iostream>
@@ -118,7 +118,8 @@ struct SimplePriorProblem {
       std::function<void(TTransform<double>&)> perturb,
       std::function<Expected<Success>(
           TTransform<double> const&, TTransform<double> const&)> is_near) {
-    std::string type_id = ::farm_ng::demangleTypeid(typeid(TTransform<double>));
+    // std::string type_id = ::farm_ng::demangleTypeid(typeid(TTransform<double>));
+    std::string type_id = "TTransform<double>";
 
     Variables est = this->truth_;
     perturb(est.world_from_robot);
@@ -268,7 +269,8 @@ struct TransformGraphProblem {
       std::function<void(TTransform<double>&)> perturb,
       std::function<Expected<Success>(
           TTransform<double> const&, TTransform<double> const&)> is_near) {
-    std::string type_id = ::farm_ng::demangleTypeid(typeid(TTransform<double>));
+    // std::string type_id = ::farm_ng::demangleTypeid(typeid(TTransform<double>));
+    std::string type_id = "TTransform<double>";
 
     SOPHUS_INFO("- Testing: {}", type_id);
 
