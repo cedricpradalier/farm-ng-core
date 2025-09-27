@@ -725,15 +725,17 @@ namespace sophus {
                 static bool addResidualFunction0(::ceres::Problem &problem, 
                         unsigned int derivative_order, double t, double delta_t, 
                         std::shared_ptr<Splined> spline,
-                        std::shared_ptr<ErrorFunctor> functor, ::ceres::LossFunction * loss_function = nullptr) {
+                        std::shared_ptr<ErrorFunctor> functor, 
+                        ::ceres::LossFunction * loss_function = nullptr,
+                        double * initial_residual = nullptr) {
                     using Wrapper = SplineErrorWrapper0<ErrorFunctor,num_residuals>;
                     KnotsAndU ku = spline->knotsAndU(t);
                     std::vector<unsigned char> map(4,255);
                     std::map<double *,std::vector<unsigned char>> pmap;
-                    pmap[spline->parentFromsControlPoint()[ku.idx_prev].unsafeMutPtr()].push_back(SPLINE_P0);
-                    pmap[spline->parentFromsControlPoint()[ku.idx_0].unsafeMutPtr()].push_back(SPLINE_P1);
-                    pmap[spline->parentFromsControlPoint()[ku.idx_1].unsafeMutPtr()].push_back(SPLINE_P2);
-                    pmap[spline->parentFromsControlPoint()[ku.idx_2].unsafeMutPtr()].push_back(SPLINE_P3);
+                    pmap[spline->unsafeMutControlPointPtr(ku.idx_prev)].push_back(SPLINE_P0);
+                    pmap[spline->unsafeMutControlPointPtr(ku.idx_0)].push_back(SPLINE_P1);
+                    pmap[spline->unsafeMutControlPointPtr(ku.idx_1)].push_back(SPLINE_P2);
+                    pmap[spline->unsafeMutControlPointPtr(ku.idx_2)].push_back(SPLINE_P3);
                     std::vector<double *> parameter_blocks;
                     for (auto it : pmap) {
                         for (unsigned char x : it.second) {
@@ -759,6 +761,24 @@ namespace sophus {
                     }
 
                     problem.AddResidualBlock(cost_function, loss_function, parameter_blocks);
+                    if (initial_residual) {
+                        double * param[4];
+                        for (size_t i=0;i<parameter_blocks.size();i++) {
+                            param[i] = parameter_blocks[i];
+                        }
+                        double jacobians_block[parameter_blocks.size()*num_residuals*LieGroupd::kNumParams];
+                        double *jacobians[4] = {
+                            jacobians_block+0*num_residuals*LieGroupd::kNumParams,
+                            jacobians_block+1*num_residuals*LieGroupd::kNumParams,
+                            jacobians_block+2*num_residuals*LieGroupd::kNumParams,
+                            jacobians_block+3*num_residuals*LieGroupd::kNumParams
+                        };
+                        cost_function->Evaluate(param,initial_residual,jacobians);
+                        for (size_t i=0;i<parameter_blocks.size();i++) {
+                            Eigen::Map<Eigen::Matrix<double,num_residuals,LieGroupd::kNumParams>> Ji(jacobians[i]);
+                            std::cout << "Jacobian " << i << std::endl << Ji << std::endl;
+                        }
+                    }
                     return true;
                 }
 
@@ -913,8 +933,10 @@ namespace sophus {
                 static bool addResidualFunction0(::ceres::Problem &problem, 
                         double t,
                         std::shared_ptr<Splined> spline,
-                        std::shared_ptr<ErrorFunctor> functor, ::ceres::LossFunction * loss_function = nullptr) {
-                    return addResidualFunction0<ErrorFunctor,num_residuals>(problem, 0, t, 0.0, spline, functor, loss_function); 
+                        std::shared_ptr<ErrorFunctor> functor, 
+                        ::ceres::LossFunction * loss_function = nullptr,
+                        double * initial_residual = nullptr) {
+                    return addResidualFunction0<ErrorFunctor,num_residuals>(problem, 0, t, 0.0, spline, functor, loss_function,initial_residual); 
                 }
 
             template <class ErrorFunctor,int num_residuals>

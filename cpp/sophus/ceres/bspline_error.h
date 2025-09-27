@@ -517,7 +517,9 @@ namespace sophus {
             template <class ErrorFunctor,int num_residuals>
                 static bool addResidualFunction0(::ceres::Problem &problem, double t, 
                         std::shared_ptr<BSplined> spline,
-                        std::shared_ptr<ErrorFunctor> functor, ::ceres::LossFunction * loss_function = nullptr) {
+                        std::shared_ptr<ErrorFunctor> functor, 
+                        ::ceres::LossFunction * loss_function = nullptr,
+                        double * initial_residual = nullptr) {
                     using Wrapper = SplineErrorWrapper0<ErrorFunctor,num_residuals>;
                     KnotsAndU ku = spline->knotsAndU(t);
                     std::vector<unsigned char> map(4,255);
@@ -551,6 +553,13 @@ namespace sophus {
                     }
 
                     problem.AddResidualBlock(cost_function, loss_function, parameter_blocks);
+                    if (initial_residual) {
+                        ew->call(spline->unsafeMutControlPointPtr(ku.idx_prev),
+                                spline->unsafeMutControlPointPtr(ku.idx_0),
+                                spline->unsafeMutControlPointPtr(ku.idx_1),
+                                spline->unsafeMutControlPointPtr(ku.idx_2),
+                                initial_residual);
+                    }
                     return true;
                 }
 

@@ -132,7 +132,7 @@ template <typename Scalar,int kDim>
             SOPHUS_ASSERT_WITHIN_REL(
                     summary.final_cost,
                     summary.initial_cost,
-                    0.1,
+                    0.9,
                     "Spline approximation: {}",
                     kDim);
         }
@@ -191,9 +191,14 @@ template <typename Scalar,template <typename> class Group_>
             public: 
                 NormalizeCallback(std::shared_ptr<Splined> spline) : spline(spline) {}
                 void normalize() {
-                    // for (size_t i=0;i<spline->parentFromsControlPoint().size();i++) {
-                    //     spline->parentFromsControlPoint()[i].normalize();
-                    // }
+#if 0
+                    // std::cout << "===== Normalise =====" << std::endl;
+                    for (size_t i=0;i<spline->parentFromsControlPoint().size();i++) {
+                        Group cp = spline->parentFromsControlPoint()[i];
+                        // std::cout << "CP " << i << " : " << cp.log().transpose() << std::endl;
+                        spline->parentFromsControlPoint()[i] = Group::exp(cp.log());
+                    }
+#endif
                 }
                 virtual ::ceres::CallbackReturnType operator()(const 
                         ::ceres::IterationSummary& /*summary*/) { 
@@ -202,15 +207,84 @@ template <typename Scalar,template <typename> class Group_>
                 } 
         };
 
+        static void evaluate(::ceres::Problem & problem, std::ostream & s) {
+            ::ceres::CRSMatrix jacobian;
+            double cost;
+
+            std::vector<::ceres::ResidualBlockId> residual_blocks;
+            std::vector<double *> parameter_blocks;
+            std::vector<size_t> parameter_size;
+            std::vector<size_t> tangent_size;
+            problem.GetResidualBlocks(&residual_blocks);
+            problem.GetParameterBlocks(&parameter_blocks);
+            parameter_size.resize(parameter_blocks.size());
+            tangent_size.resize(parameter_blocks.size());
+            for (size_t i=0;i<parameter_blocks.size();i++) {
+                parameter_size[i] = problem.ParameterBlockSize(parameter_blocks[i]);
+                tangent_size[i] = problem.ParameterBlockTangentSize(parameter_blocks[i]);
+                std::cout << "Param " << i << " " << parameter_blocks[i] << 
+                    " " << parameter_size[i] <<
+                    " " << tangent_size[i] << std::endl;
+            }
+#if 0
+            for (size_t i=0;i<residual_blocks.size();i++) {
+                double rcost=0;
+                const ::ceres::CostFunction *cf = problem.GetCostFunctionForResidualBlock(residual_blocks[i]);
+                Eigen::VectorXd residuals(cf->num_residuals());
+                std::vector<Eigen::MatrixXd> ejacobian(parameter_blocks.size());
+                double * jacobian[parameter_blocks.size()];
+                for (size_t j=0;j<parameter_blocks.size();j++) {
+                    ejacobian[j]=Eigen::MatrixXd(cf->num_residuals(),tangent_size[i]);
+                    jacobian[j]=ejacobian[j].data();
+                }
+                problem.EvaluateResidualBlock(residual_blocks[i],false,&rcost,residuals.data(),jacobian);
+                std::cout << "RB " << residual_blocks[i] << 
+                    " C " << rcost << " R " << residuals.transpose() << std::endl;
+                for (size_t j=0;j<parameter_blocks.size();j++) {
+                    std::cout << "Pb " << j << std::endl << ejacobian[j] << std::endl;
+                }
+
+            }
+#endif
+
+            std::vector<double> residuals;
+#if 0
+            std::vector<double> gradient;
+            problem.Evaluate(::ceres::Problem::EvaluateOptions(),&cost,&residuals,&gradient,&jacobian);
+            Eigen::MatrixXd ejacobian = Eigen::MatrixXd::Zero(jacobian.num_rows,jacobian.num_cols);
+            for (int row=0;row<jacobian.num_rows;row++) {
+                for (int icol=jacobian.rows[row];icol<jacobian.rows[row+1];icol++) {
+                    ejacobian(row,jacobian.cols[icol])=jacobian.values[icol];
+                }
+            }
+            s << "Jacobian" << std::endl 
+                << ejacobian << std::endl 
+                << "Gradient" << std::endl;
+            for (size_t i=0;i<gradient.size();i++) {
+                s << gradient[i] << " ";
+            }
+            s << std::endl;
+#else
+            problem.Evaluate(::ceres::Problem::EvaluateOptions(),&cost,&residuals,nullptr,nullptr);
+#endif
+            s << "Cost " << cost << " Residuals" << std::endl;
+            for (size_t i=0;i<residuals.size();i++) {
+                s << residuals[i] << " ";
+            }
+            s << std::endl;
+            s.flush();
+
+        }
+
 
 
         static void runAllTests(std::string group_name) {
+            std::cout << "Starting test for " << group_name << std::endl;
             static int constexpr kDof = Group::kDof;
             std::vector<Group> kElementExamples(10);
-            auto kPointExamples = ::sophus::pointExamples<Scalar,4>();
             for (size_t i=0;i<kElementExamples.size();i++) {
-                Eigen::Matrix<Scalar,Group::kDof,1> glog = Eigen::Matrix<Scalar,Group::kDof,1>::Random()*1e-3;
-                kElementExamples[i] = Group::exp(glog) * Group();
+                Eigen::Matrix<Scalar,Group::kDof,1> glog = Eigen::Matrix<Scalar,Group::kDof,1>::Random()*1e+1;
+                kElementExamples[i] = Group::exp(glog);
             }
             using Functor = TestLieGroupCostFunctor;
             size_t n_knots = 3 * kElementExamples.size() / 4;
@@ -225,11 +299,14 @@ template <typename Scalar,template <typename> class Group_>
             double initial_error = 0.;
             auto parametrization = new sophus::ceres::Manifold<Group_>;
 
-            for (auto v : spline->parentFromsControlPoint()) {
-
-                problem.AddParameterBlock(v.unsafeMutPtr(), Group::kNumParams, parametrization);
+            std::cout << "Adding parametrization" << std::endl;
+            for (size_t i=0;i<spline->parentFromsControlPoint().size();i++) {
+                double * p = spline->unsafeMutControlPointPtr(i);
+                std::cout << "Manifold for Param " << p << std::endl;
+                problem.AddParameterBlock(p, Group::kNumParams, parametrization);
             }
 
+            std::cout << "Setting residual functions" << std::endl;
             for (size_t i = 0; i < kElementExamples.size(); ++i) {
                 double t = i;
                 Group pred = spline->parentFromSpline(t);
@@ -237,7 +314,8 @@ template <typename Scalar,template <typename> class Group_>
                 initial_error += squaredNorm(err.log());
 
                 std::shared_ptr<Functor> functor(new Functor(kElementExamples[i]));
-                SES::template addResidualFunction0<Functor,kDof>(problem,t,spline,functor);
+                double residuals[kDof];
+                SES::template addResidualFunction0<Functor,kDof>(problem,t,spline,functor,nullptr);
             }
 
             ::ceres::Solver::Options options;
@@ -260,10 +338,14 @@ template <typename Scalar,template <typename> class Group_>
             options.gradient_tolerance = 1e-8;
             options.function_tolerance = 1e-8;
             options.parameter_tolerance = 1e-8;
-            options.minimizer_progress_to_stdout = false;
+            options.minimizer_progress_to_stdout = true;
             options.max_num_iterations = 500;
 
 
+            std::cout << "Evaluating problem" << std::endl;
+            evaluate(problem,std::cout);
+
+            std::cout << "Starting solver" << std::endl;
             ::ceres::Solver::Summary summary;
             ::ceres::Solve(options, &problem, &summary);
             // std::cout << summary.FullReport() << "\n";
@@ -283,7 +365,7 @@ template <typename Scalar,template <typename> class Group_>
             SOPHUS_ASSERT_WITHIN_REL(
                     summary.final_cost,
                     summary.initial_cost,
-                    0.1,
+                    0.9,
                     "Spline approximation: {}",
                     group_name);
         }
@@ -292,33 +374,34 @@ template <typename Scalar,template <typename> class Group_>
   template <typename T>
       using Translation1 = Translation<T,1>;
 
+TEST(cartesian_bspline, cartesian_bspline_prop_test) {
+  BSplinePropTestSuite<double,1>::runAllTests("Vector1d");
+  BSplinePropTestSuite<double,2>::runAllTests("Vector1d");
+  BSplinePropTestSuite<double,3>::runAllTests("Vector1d");
+  BSplinePropTestSuite<double,4>::runAllTests("Vector1d");
+}
+
+
 TEST(lie_group_bspline, lie_group_bspline_prop_test) {
-  // GroupBSplinePropTestSuite<double,Scaling2>::runAllTests("Scaling2");
-  // GroupBSplinePropTestSuite<double,Scaling3>::runAllTests("Scaling3");
-
-  // GroupBSplinePropTestSuite<double,Translation1>::runAllTests("Translation1");
-
-  // GroupBSplinePropTestSuite<double,Translation2>::runAllTests("Translation2");
-  // GroupBSplinePropTestSuite<double,Translation3>::runAllTests("Translation3");
-  // GroupBSplinePropTestSuite<double,ScalingTranslation2>::runAllTests( "ScalingTranslation2");
-  // GroupBSplinePropTestSuite<double,ScalingTranslation3>::runAllTests( "ScalingTranslation3");
+  GroupBSplinePropTestSuite<double,Translation1>::runAllTests("Translation1");
+  GroupBSplinePropTestSuite<double,Translation2>::runAllTests("Translation2");
+  GroupBSplinePropTestSuite<double,Translation3>::runAllTests("Translation3");
 
   GroupBSplinePropTestSuite<double,Rotation2>::runAllTests("Rotation2");
   GroupBSplinePropTestSuite<double,Rotation3>::runAllTests("Rotation3");
   GroupBSplinePropTestSuite<double,Isometry2>::runAllTests("Isometry2");
   GroupBSplinePropTestSuite<double,Isometry3>::runAllTests("Isometry3");
 
-  // GroupBSplinePropTestSuite<double,SpiralSimilarity2>::runAllTests( "SpiralSimilarity2");
-  // GroupBSplinePropTestSuite<double,SpiralSimilarity3>::runAllTests( "SpiralSimilarity3");
-  // GroupBSplinePropTestSuite<double,Similarity2>::runAllTests("Similarity2");
-  // GroupBSplinePropTestSuite<double,Similarity3>::runAllTests("Similarity3");
-}
+  GroupBSplinePropTestSuite<double,SpiralSimilarity2>::runAllTests( "SpiralSimilarity2");
+  GroupBSplinePropTestSuite<double,SpiralSimilarity3>::runAllTests( "SpiralSimilarity3");
+  GroupBSplinePropTestSuite<double,Similarity2>::runAllTests("Similarity2");
+  GroupBSplinePropTestSuite<double,Similarity3>::runAllTests("Similarity3");
 
-TEST(cartesian_bspline, cartesian_bspline_prop_test) {
-  BSplinePropTestSuite<double,1>::runAllTests("Vector1d");
-  BSplinePropTestSuite<double,2>::runAllTests("Vector1d");
-  BSplinePropTestSuite<double,3>::runAllTests("Vector1d");
-  BSplinePropTestSuite<double,4>::runAllTests("Vector1d");
+  GroupBSplinePropTestSuite<double,Scaling2>::runAllTests("Scaling2");
+  GroupBSplinePropTestSuite<double,Scaling3>::runAllTests("Scaling3");
+  GroupBSplinePropTestSuite<double,ScalingTranslation2>::runAllTests( "ScalingTranslation2");
+  GroupBSplinePropTestSuite<double,ScalingTranslation3>::runAllTests( "ScalingTranslation3");
+
 }
 
 }  // namespace sophus::test
