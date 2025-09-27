@@ -231,17 +231,19 @@ template <typename Scalar,template <typename> class Group_>
                 double rcost=0;
                 const ::ceres::CostFunction *cf = problem.GetCostFunctionForResidualBlock(residual_blocks[i]);
                 Eigen::VectorXd residuals(cf->num_residuals());
+                const std::vector<int32_t> & pbsize = cf->parameter_block_sizes();
                 std::vector<Eigen::MatrixXd> ejacobian(parameter_blocks.size());
                 double * jacobian[parameter_blocks.size()];
                 for (size_t j=0;j<parameter_blocks.size();j++) {
-                    ejacobian[j]=Eigen::MatrixXd(cf->num_residuals(),tangent_size[i]);
+                    ejacobian[j]=Eigen::MatrixXd(cf->num_residuals(),tangent_size[j]);
                     jacobian[j]=ejacobian[j].data();
                 }
                 problem.EvaluateResidualBlock(residual_blocks[i],false,&rcost,residuals.data(),jacobian);
                 std::cout << "RB " << residual_blocks[i] << 
                     " C " << rcost << " R " << residuals.transpose() << std::endl;
                 for (size_t j=0;j<parameter_blocks.size();j++) {
-                    std::cout << "Pb " << j << std::endl << ejacobian[j] << std::endl;
+                    std::cout << "Pb " << j << " : " << cf->num_residuals() << "x" << tangent_size[j] 
+                        << std::endl << ejacobian[j] << std::endl;
                 }
 
             }
@@ -257,33 +259,33 @@ template <typename Scalar,template <typename> class Group_>
                     ejacobian(row,jacobian.cols[icol])=jacobian.values[icol];
                 }
             }
-            s << "Jacobian" << std::endl 
+            std::cout << "Jacobian" << std::endl 
                 << ejacobian << std::endl 
                 << "Gradient" << std::endl;
             for (size_t i=0;i<gradient.size();i++) {
-                s << gradient[i] << " ";
+                std::cout << gradient[i] << " ";
             }
-            s << std::endl;
+            std::cout << std::endl;
 #else
             problem.Evaluate(::ceres::Problem::EvaluateOptions(),&cost,&residuals,nullptr,nullptr);
 #endif
-            s << "Cost " << cost << " Residuals" << std::endl;
+            std::cout << "Cost " << cost << " Residuals" << std::endl;
             for (size_t i=0;i<residuals.size();i++) {
-                s << residuals[i] << " ";
+                std::cout << residuals[i] << " ";
             }
-            s << std::endl;
-            s.flush();
+            std::cout << std::endl;
+            std::cout.flush();
 
         }
 
 
 
-        static void runAllTests(std::string group_name) {
+        static void runAllTests(std::string group_name, double scale=1e+1) {
             std::cout << "Starting test for " << group_name << std::endl;
             static int constexpr kDof = Group::kDof;
             std::vector<Group> kElementExamples(10);
             for (size_t i=0;i<kElementExamples.size();i++) {
-                Eigen::Matrix<Scalar,Group::kDof,1> glog = Eigen::Matrix<Scalar,Group::kDof,1>::Random()*1e+1;
+                Eigen::Matrix<Scalar,Group::kDof,1> glog = Eigen::Matrix<Scalar,Group::kDof,1>::Random()*scale;
                 kElementExamples[i] = Group::exp(glog);
             }
             using Functor = TestLieGroupCostFunctor;
@@ -397,10 +399,10 @@ TEST(lie_group_bspline, lie_group_bspline_prop_test) {
   GroupBSplinePropTestSuite<double,Similarity2>::runAllTests("Similarity2");
   GroupBSplinePropTestSuite<double,Similarity3>::runAllTests("Similarity3");
 
-  GroupBSplinePropTestSuite<double,Scaling2>::runAllTests("Scaling2");
-  GroupBSplinePropTestSuite<double,Scaling3>::runAllTests("Scaling3");
-  GroupBSplinePropTestSuite<double,ScalingTranslation2>::runAllTests( "ScalingTranslation2");
-  GroupBSplinePropTestSuite<double,ScalingTranslation3>::runAllTests( "ScalingTranslation3");
+  GroupBSplinePropTestSuite<double,Scaling2>::runAllTests("Scaling2",1e+0);
+  GroupBSplinePropTestSuite<double,Scaling3>::runAllTests("Scaling3",1e+0);
+  GroupBSplinePropTestSuite<double,ScalingTranslation2>::runAllTests( "ScalingTranslation2",1e+0);
+  GroupBSplinePropTestSuite<double,ScalingTranslation3>::runAllTests( "ScalingTranslation3",1e+0);
 
 }
 

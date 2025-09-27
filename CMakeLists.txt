@@ -14,5 +14,5 @@ set(CMAKE_CXX_CLANG_TIDY "")
 
 find_package(fmt REQUIRED)
 
-add_subdirectory(protos)
+# add_subdirectory(protos)
 add_subdirectory(cpp)
