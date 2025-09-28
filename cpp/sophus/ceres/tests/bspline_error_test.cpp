@@ -347,7 +347,7 @@ template <typename Scalar,template <typename> class Group_>
 
                 std::shared_ptr<Functor> functor(new Functor(kElementExamples[i]));
                 double residuals[kDof];
-                SES::template addResidualFunction0<Functor,kDof>(problem,t,spline,functor,nullptr);
+                SES::template addResidualFunction0<Functor,kDof>(problem,t,spline,functor);
             }
 
             ::ceres::Solver::Options options;
