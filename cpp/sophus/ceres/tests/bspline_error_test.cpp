@@ -6,6 +6,8 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
+#include <fstream>
+
 #include "sophus/calculus/num_diff.h"
 #include "sophus/interp/interpolate.h"
 #include "sophus/interp/spline/bspline.h"
@@ -31,6 +33,8 @@
 #include <gtest/gtest.h>
 
 namespace sophus::test {
+
+    bool output_test_files = true;
 
 template <typename Scalar,int kDim>
     struct BSplinePropTestSuite {
@@ -64,13 +68,17 @@ template <typename Scalar,int kDim>
 
 
 
-        static void runAllTests(std::string group_name) {
-            auto kElementExamples = ::sophus::pointExamples<Scalar,kDim>();
-            if (kElementExamples.size()<10) {
-                size_t initial_size = kElementExamples.size();
-                while (kElementExamples.size() < 10) {
-                    kElementExamples.push_back(kElementExamples[kElementExamples.size() % initial_size]);
+        static void runAllTests(std::string group_name, bool file_output,double scale=1.0) {
+            std::vector<Vectord> kElementExamples(10);
+            for (size_t i=0;i<kElementExamples.size();i++) {
+                kElementExamples[i] = Vectord::Random() * scale;
+            }
+            if (file_output) {
+                std::ofstream finput(group_name+"_input.csv", std::ios::binary);
+                for (size_t i=0;i<kElementExamples.size();i++) {
+                    finput << i << " " << kElementExamples[i].transpose() << std::endl;
                 }
+                finput.close();
             }
 
             using Functor = TestCartesianCostFunctor;
@@ -117,6 +125,21 @@ template <typename Scalar,int kDim>
             ::ceres::Solve(options, &problem, &summary);
             // std::cout << summary.FullReport() << "\n";
 
+            if (file_output) {
+                std::ofstream fknots(group_name+"_knots.csv", std::ios::binary);
+                const std::vector<Vectord> & cpts = spline->constControlPoints();
+                for (size_t i=0;i<cpts.size();i++) {
+                    fknots << spline->t0() + i * spline->deltaT() << 
+                        " " << cpts[i].transpose() << std::endl;
+                }
+                fknots.close();
+                std::ofstream fspline(group_name+"_spline.csv", std::ios::binary);
+                for (double t=spline->t0();t<spline->tmax();t+=0.05) {
+                    Vectord pred = spline->interpolate(t);
+                    fspline << t << " " << pred.transpose() << std::endl;
+                }
+                fspline.close();
+            }
 
             // Computing final error in the estimates
             double final_error = 0.;
@@ -280,7 +303,7 @@ template <typename Scalar,template <typename> class Group_>
 
 
 
-        static void runAllTests(std::string group_name, double scale=1e+1) {
+        static void runAllTests(std::string group_name, bool file_output, double scale=1e+1) {
             std::cout << "Starting test for " << group_name << std::endl;
             static int constexpr kDof = Group::kDof;
             std::vector<Group> kElementExamples(10);
@@ -288,8 +311,15 @@ template <typename Scalar,template <typename> class Group_>
                 Eigen::Matrix<Scalar,Group::kDof,1> glog = Eigen::Matrix<Scalar,Group::kDof,1>::Random()*scale;
                 kElementExamples[i] = Group::exp(glog);
             }
+            if (file_output) {
+                std::ofstream finput(group_name+"_input.csv", std::ios::binary);
+                for (size_t i=0;i<kElementExamples.size();i++) {
+                    finput << i << " " << kElementExamples[i].log().transpose() << std::endl;
+                }
+                finput.close();
+            }
             using Functor = TestLieGroupCostFunctor;
-            size_t n_knots = 3 * kElementExamples.size() / 4;
+            size_t n_knots = 3 * (kElementExamples.size()+2) / 5;
             // Running Lie group spline approximation
             std::vector<Group> control_poses(n_knots,Group());
             std::shared_ptr<Splined> spline(new Splined(control_poses, -1.0,
@@ -352,6 +382,20 @@ template <typename Scalar,template <typename> class Group_>
             ::ceres::Solve(options, &problem, &summary);
             // std::cout << summary.FullReport() << "\n";
 
+            if (file_output) {
+                std::ofstream fknots(group_name+"_knots.csv", std::ios::binary);
+                for (size_t i=0;i<spline->parentFromsControlPoint().size();i++) {
+                    fknots << spline->t0() + i * spline->deltaT() << 
+                        " " << spline->parentFromsControlPoint()[i].log().transpose() << std::endl;
+                }
+                fknots.close();
+                std::ofstream fspline(group_name+"_spline.csv", std::ios::binary);
+                for (double t=spline->t0();t<spline->tmax();t+=0.05) {
+                    Group pred = spline->parentFromSpline(t);
+                    fspline << t << " " << pred.log().transpose() << std::endl;
+                }
+                fspline.close();
+            }
 
             // Computing final error in the estimates
             double final_error = 0.;
@@ -377,32 +421,32 @@ template <typename Scalar,template <typename> class Group_>
       using Translation1 = Translation<T,1>;
 
 TEST(cartesian_bspline, cartesian_bspline_prop_test) {
-  BSplinePropTestSuite<double,1>::runAllTests("Vector1d");
-  BSplinePropTestSuite<double,2>::runAllTests("Vector1d");
-  BSplinePropTestSuite<double,3>::runAllTests("Vector1d");
-  BSplinePropTestSuite<double,4>::runAllTests("Vector1d");
+  BSplinePropTestSuite<double,1>::runAllTests("Vector1d",output_test_files);
+  BSplinePropTestSuite<double,2>::runAllTests("Vector2d",output_test_files);
+  BSplinePropTestSuite<double,3>::runAllTests("Vector3d",output_test_files);
+  BSplinePropTestSuite<double,4>::runAllTests("Vector4d",output_test_files);
 }
 
 
 TEST(lie_group_bspline, lie_group_bspline_prop_test) {
-  GroupBSplinePropTestSuite<double,Translation1>::runAllTests("Translation1");
-  GroupBSplinePropTestSuite<double,Translation2>::runAllTests("Translation2");
-  GroupBSplinePropTestSuite<double,Translation3>::runAllTests("Translation3");
+  GroupBSplinePropTestSuite<double,Translation1>::runAllTests("Translation1",output_test_files);
+  GroupBSplinePropTestSuite<double,Translation2>::runAllTests("Translation2",output_test_files);
+  GroupBSplinePropTestSuite<double,Translation3>::runAllTests("Translation3",output_test_files);
 
-  GroupBSplinePropTestSuite<double,Rotation2>::runAllTests("Rotation2");
-  GroupBSplinePropTestSuite<double,Rotation3>::runAllTests("Rotation3");
-  GroupBSplinePropTestSuite<double,Isometry2>::runAllTests("Isometry2");
-  GroupBSplinePropTestSuite<double,Isometry3>::runAllTests("Isometry3");
+  GroupBSplinePropTestSuite<double,Rotation2>::runAllTests("Rotation2",output_test_files);
+  GroupBSplinePropTestSuite<double,Rotation3>::runAllTests("Rotation3",output_test_files);
+  GroupBSplinePropTestSuite<double,Isometry2>::runAllTests("Isometry2",output_test_files);
+  GroupBSplinePropTestSuite<double,Isometry3>::runAllTests("Isometry3",output_test_files);
 
-  GroupBSplinePropTestSuite<double,SpiralSimilarity2>::runAllTests( "SpiralSimilarity2");
-  GroupBSplinePropTestSuite<double,SpiralSimilarity3>::runAllTests( "SpiralSimilarity3");
-  GroupBSplinePropTestSuite<double,Similarity2>::runAllTests("Similarity2");
-  GroupBSplinePropTestSuite<double,Similarity3>::runAllTests("Similarity3");
+  GroupBSplinePropTestSuite<double,SpiralSimilarity2>::runAllTests( "SpiralSimilarity2",output_test_files);
+  GroupBSplinePropTestSuite<double,SpiralSimilarity3>::runAllTests( "SpiralSimilarity3",output_test_files);
+  GroupBSplinePropTestSuite<double,Similarity2>::runAllTests("Similarity2",output_test_files);
+  GroupBSplinePropTestSuite<double,Similarity3>::runAllTests("Similarity3",output_test_files);
 
-  GroupBSplinePropTestSuite<double,Scaling2>::runAllTests("Scaling2",1e+0);
-  GroupBSplinePropTestSuite<double,Scaling3>::runAllTests("Scaling3",1e+0);
-  GroupBSplinePropTestSuite<double,ScalingTranslation2>::runAllTests( "ScalingTranslation2",1e+0);
-  GroupBSplinePropTestSuite<double,ScalingTranslation3>::runAllTests( "ScalingTranslation3",1e+0);
+  GroupBSplinePropTestSuite<double,Scaling2>::runAllTests("Scaling2",output_test_files,1e+0);
+  GroupBSplinePropTestSuite<double,Scaling3>::runAllTests("Scaling3",output_test_files,1e+0);
+  GroupBSplinePropTestSuite<double,ScalingTranslation2>::runAllTests( "ScalingTranslation2",output_test_files,1e+0);
+  GroupBSplinePropTestSuite<double,ScalingTranslation3>::runAllTests( "ScalingTranslation3",output_test_files,1e+0);
 
 }
 
