@@ -90,7 +90,11 @@ class CubicBSplineImpl {
       return control_points_[i].data();
   }
 
-  [[nodiscard]] std::vector<Vector> const& controlPoints() const {
+  [[nodiscard]] const std::vector<Vector> & constControlPoints() const {
+    return control_points_;
+  }
+
+  [[nodiscard]] const std::vector<Vector> & controlPoints() const {
     return control_points_;
   }
 
@@ -134,8 +138,8 @@ class CubicBSpline {
     return t0_ + impl_.deltaT() * getNumSegments();
   }
 
-  [[nodiscard]] std::vector<Vector> const& controlPoints() const {
-    return impl_.controlPoints();
+  [[nodiscard]] const std::vector<Vector> & constControlPoints() const {
+    return impl_.constControlPoints();
   }
 
   TScalar * unsafeMutControlPointPtr(size_t i) {
