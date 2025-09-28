@@ -16,7 +16,7 @@ if(${BUILD_SOPHUS_TESTS})
     farm_ng_add_test(${test_basename}
                           PARENT_LIBRARY sophus_ceres
                           LINK_LIBRARIES
-                          Ceres::ceres sophus_ceres gflags
+                          Ceres::ceres sophus_ceres 
                           #farm_ng_core::farm_ng_core_pipeline
                           sophus_sensor
                           LABELS large)
